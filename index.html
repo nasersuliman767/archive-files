@@ -7,52 +7,51 @@
 <title>أرشيف الاستقطاعات</title>
 <style>
 *{box-sizing:border-box}
-body{font-family:Arial,sans-serif;background:#f3f6f5;margin:0;padding:16px;color:#222}
-main{max-width:900px;margin:25px auto;background:white;padding:22px;border-radius:14px;box-shadow:0 3px 15px #0001}
+body{font-family:Arial,sans-serif;background:#f2f5f4;margin:0;padding:15px;color:#222}
+main{max-width:850px;margin:25px auto;background:white;padding:22px;border-radius:12px}
 h1{color:#176b50}
 input,select,button{width:100%;padding:12px;margin:7px 0;border:1px solid #ccc;border-radius:7px;font-size:16px}
 button{background:#176b50;color:white;border:0;cursor:pointer}
 button:disabled{opacity:.6}
 .hidden{display:none!important}
 .note{color:#666;font-size:14px}
-.file{border:1px solid #ddd;border-radius:9px;padding:13px;margin:12px 0;overflow-wrap:anywhere}
+.msg{padding:8px;white-space:pre-wrap;overflow-wrap:anywhere}
+.file{border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0;overflow-wrap:anywhere}
 .actions{display:flex;gap:8px}
 .actions button{flex:1}
 .danger{background:#a52b2b}
-.status{padding:10px;background:#f4f6f5;border-radius:7px;white-space:pre-wrap}
 </style>
 </head>
 <body>
 <main>
 <h1>أرشيف الاستقطاعات</h1>
-<p class="note">حفظ الملفات والبحث عنها حسب اسم الشخص وتصنيف الاستقطاع.</p>
+<p class="note">حفظ الملفات والبحث عنها باسم الشخص وتصنيف الاستقطاع.</p>
 
-<section id="login">
-<h3>تسجيل الدخول</h3>
-<input id="username" autocomplete="username" placeholder="اسم المستخدم">
-<input id="password" type="password" autocomplete="current-password" placeholder="كلمة المرور">
-<button id="loginBtn" type="button">دخول</button>
-<p id="loginMsg" class="status" aria-live="polite"></p>
+<section id="auth">
+<h3 id="authTitle">تسجيل الدخول</h3>
+<input id="username" placeholder="اسم المستخدم" maxlength="24" autocomplete="username">
+<input id="password" type="password" placeholder="كلمة المرور" autocomplete="current-password">
+<button id="authBtn">دخول</button>
+<button id="switchBtn" type="button">إنشاء حساب جديد</button>
+<p id="authMsg" class="msg" aria-live="polite"></p>
 </section>
 
 <section id="archive" class="hidden">
-<button id="logoutBtn" type="button">تسجيل الخروج</button>
+<p id="welcome" class="note"></p>
+<button id="logoutBtn">تسجيل الخروج</button>
 <hr>
 <h3>إضافة ملف</h3>
-<label for="person">اسم الشخص</label>
-<input id="person" placeholder="اكتب اسم الشخص">
-<label for="category">تصنيف الاستقطاع</label>
+<input id="person" placeholder="اسم الشخص">
 <select id="category">
 <option value="استقطاع كفالة يتيم / أرملة">استقطاع كفالة يتيم / أرملة</option>
 <option value="استقطاع عام">استقطاع عام</option>
 </select>
-<label for="uploadFile">اختر الملف</label>
 <input id="uploadFile" type="file">
-<button id="uploadBtn" type="button">حفظ الملف</button>
-<p id="uploadMsg" class="status" aria-live="polite"></p>
+<button id="uploadBtn">حفظ الملف</button>
+<p id="uploadMsg" class="msg" aria-live="polite"></p>
 <hr>
 <h3>البحث في الأرشيف</h3>
-<input id="searchName" placeholder="ابحث باسم الشخص" autocomplete="off">
+<input id="searchName" placeholder="ابحث باسم الشخص">
 <select id="filterCategory">
 <option value="">كل التصنيفات</option>
 <option value="استقطاع كفالة يتيم / أرملة">استقطاع كفالة يتيم / أرملة</option>
@@ -68,74 +67,114 @@ import { createClient } from
 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const SUPABASE_URL = 'https://fpqmqpkeakvgddekernj.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_v3czIBuYsiubL-A-JQgL6w_KSs6nK9F';
-
-const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_PUBLISHABLE_KEY
-);
-
+const SUPABASE_KEY = 'sb_publishable_v3czIBuYsiubL-A-JQgL6w_KSs6nK9F';
 const BUCKET = 'archive-documents';
-const $ = id => document.getElementById(id);
-let records = [];
-let busy = false;
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-function message(id, text) {
-  $(id).textContent = text;
+const $ = id => document.getElementById(id);
+let signupMode = false;
+let busy = false;
+let records = [];
+
+function usernameEmail(name) {
+  const normalized = name.trim().normalize('NFKC').toLowerCase();
+  const bytes = new TextEncoder().encode(normalized);
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2,'0')).join('');
+  return 'u' + hex + '@archive.example.com';
 }
 
 function setBusy(value) {
   busy = value;
-  ['loginBtn','uploadBtn','logoutBtn'].forEach(id => {
+  ['authBtn','switchBtn','logoutBtn','uploadBtn'].forEach(id => {
     $(id).disabled = value;
   });
 }
 
-function showLogin() {
-  $('login').classList.remove('hidden');
+function showAuth(text='') {
+  $('auth').classList.remove('hidden');
   $('archive').classList.add('hidden');
+  $('authMsg').textContent = text;
 }
 
 function showArchive() {
-  $('login').classList.add('hidden');
+  $('auth').classList.add('hidden');
   $('archive').classList.remove('hidden');
 }
 
-async function login() {
+$('switchBtn').addEventListener('click', () => {
+  signupMode = !signupMode;
+  $('authTitle').textContent = signupMode ? 'إنشاء حساب جديد' : 'تسجيل الدخول';
+  $('authBtn').textContent = signupMode ? 'إنشاء الحساب' : 'دخول';
+  $('switchBtn').textContent = signupMode ? 'العودة لتسجيل الدخول' : 'إنشاء حساب جديد';
+  $('password').value = '';
+  $('authMsg').textContent = '';
+});
+
+$('authBtn').addEventListener('click', async () => {
   if (busy) return;
-  const username = $('username').value.trim();
+
+  const username = $('username').value.trim().normalize('NFKC');
   const password = $('password').value;
 
   if (!username || !password) {
-    message('loginMsg','أدخل اسم المستخدم وكلمة المرور.');
+    $('authMsg').textContent = 'أدخل اسم المستخدم وكلمة المرور.';
+    return;
+  }
+
+  if (username.length < 3 || username.length > 24) {
+    $('authMsg').textContent = 'اسم المستخدم يجب أن يكون من 3 إلى 24 حرفًا.';
+    return;
+  }
+
+  if (password.length < 6) {
+    $('authMsg').textContent = 'كلمة المرور يجب ألا تقل عن 6 أحرف.';
     return;
   }
 
   setBusy(true);
-  message('loginMsg','جارٍ تسجيل الدخول...');
+  $('authMsg').textContent = signupMode ? 'جارٍ إنشاء الحساب...' : 'جارٍ تسجيل الدخول...';
 
   try {
-    const email = username.includes('@')
-      ? username
-      : username + '@archive.example.com';
+    const email = usernameEmail(username);
+    let error;
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+    if (signupMode) {
+      const result = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { username } }
+      });
+      error = result.error;
 
-    if (error) throw error;
+      if (!error && !result.data.session) {
+        $('authMsg').textContent =
+          'الحساب أُنشئ أو ينتظر التأكيد. عطّل تأكيد البريد الإلكتروني في إعدادات Supabase ثم جرّب مجددًا. إذا كان الحساب موجودًا بالفعل، ارجع لتسجيل الدخول.';
+        return;
+      }
+    } else {
+      const result = await supabase.auth.signInWithPassword({ email, password });
+      error = result.error;
+    }
 
+    if (error) {
+      $('authMsg').textContent = signupMode
+        ? 'تعذر إنشاء الحساب. قد يكون اسم المستخدم مستخدمًا بالفعل أو إعداد المصادقة يحتاج تعديلًا.'
+        : 'تعذر الدخول. تحقق من اسم المستخدم وكلمة المرور.';
+      return;
+    }
+
+    $('welcome').textContent = 'المستخدم: ' + username;
+    $('password').value = '';
     showArchive();
     await showFiles();
   } catch (e) {
-    message('loginMsg','تعذر الدخول. تحقق من إنشاء الحساب وصحة البيانات.');
+    $('authMsg').textContent = 'تعذر الاتصال. تحقق من إعدادات المشروع والإنترنت.';
   } finally {
     setBusy(false);
   }
-}
+});
 
-async function logout() {
+$('logoutBtn').addEventListener('click', async () => {
   if (busy) return;
   setBusy(true);
   try {
@@ -143,16 +182,15 @@ async function logout() {
     if (error) throw error;
     records = [];
     $('files').replaceChildren();
-    showLogin();
-    message('loginMsg','تم تسجيل الخروج.');
-  } catch (e) {
-    alert('تعذر تسجيل الخروج. حاول مرة أخرى.');
+    showAuth('تم تسجيل الخروج.');
+  } catch {
+    alert('تعذر تسجيل الخروج.');
   } finally {
     setBusy(false);
   }
-}
+});
 
-async function uploadFile() {
+$('uploadBtn').addEventListener('click', async () => {
   if (busy) return;
 
   const person = $('person').value.trim();
@@ -160,69 +198,66 @@ async function uploadFile() {
   const file = $('uploadFile').files[0];
 
   if (!person || !file) {
-    message('uploadMsg','أدخل اسم الشخص واختر الملف.');
-    return;
-  }
-
-  const { data: authData } = await supabase.auth.getUser();
-  if (!authData.user) {
-    showLogin();
-    message('loginMsg','انتهت الجلسة. سجل الدخول مجددًا.');
+    $('uploadMsg').textContent = 'أدخل اسم الشخص واختر الملف.';
     return;
   }
 
   setBusy(true);
-  message('uploadMsg','جارٍ رفع الملف...');
+  $('uploadMsg').textContent = 'جارٍ حفظ الملف...';
 
-  const path = authData.user.id + '/' + crypto.randomUUID();
+  let path;
+  let uploaded = false;
 
   try {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) throw new Error('انتهت الجلسة؛ سجّل الدخول مجددًا.');
+
+    const safeName = file.name.replace(/[^\w.\-\u0600-\u06FF]/g, '_');
+    path = userData.user.id + '/' + crypto.randomUUID() + '_' + safeName;
+
     const { error: uploadError } = await supabase.storage
-      .from(BUCKET)
-      .upload(path, file, { upsert: false });
+      .from(BUCKET).upload(path, file);
 
     if (uploadError) throw uploadError;
+    uploaded = true;
 
-    const { error: dbError } = await supabase
-      .from('archive_files')
-      .insert({
-        person_name: person,
-        category,
-        file_path: path,
-        file_name: file.name
-      });
+    const { error: dbError } = await supabase.from('archive_files').insert({
+      person_name: person,
+      category,
+      file_path: path,
+      file_name: file.name
+    });
 
     if (dbError) {
       await supabase.storage.from(BUCKET).remove([path]);
+      uploaded = false;
       throw dbError;
     }
 
     $('person').value = '';
     $('uploadFile').value = '';
-    message('uploadMsg','تم حفظ الملف بنجاح.');
+    $('uploadMsg').textContent = 'تم حفظ الملف بنجاح.';
     await showFiles();
   } catch (e) {
-    message('uploadMsg','تعذر حفظ الملف: ' + (e.message || 'خطأ غير معروف'));
+    $('uploadMsg').textContent = 'تعذر الحفظ: ' + (e.message || 'تحقق من الجدول والصلاحيات.');
   } finally {
     setBusy(false);
   }
-}
+});
 
 async function showFiles() {
   const container = $('files');
   container.replaceChildren();
-  message('listMsg','جارٍ تحميل الملفات...');
-
-  const { data: authData } = await supabase.auth.getUser();
-  if (!authData.user) {
-    showLogin();
-    message('listMsg','');
-    return;
-  }
+  $('listMsg').textContent = 'جارٍ تحميل الملفات...';
 
   try {
-    const { data, error } = await supabase
-      .from('archive_files')
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      showAuth('يرجى تسجيل الدخول.');
+      return;
+    }
+
+    const { data, error } = await supabase.from('archive_files')
       .select('id,person_name,category,file_path,file_name,created_at')
       .order('created_at', { ascending: false });
 
@@ -231,13 +266,12 @@ async function showFiles() {
 
     const term = $('searchName').value.trim().toLowerCase();
     const category = $('filterCategory').value;
-
     const filtered = records.filter(r =>
       (r.person_name || '').toLowerCase().includes(term) &&
       (!category || r.category === category)
     );
 
-    message('listMsg','عدد الملفات: ' + filtered.length);
+    $('listMsg').textContent = 'عدد الملفات: ' + filtered.length;
 
     if (!filtered.length) {
       container.textContent = 'لا توجد ملفات مطابقة.';
@@ -260,48 +294,34 @@ async function showFiles() {
       const open = document.createElement('button');
       open.textContent = 'فتح / تنزيل';
       open.onclick = async () => {
-        open.disabled = true;
         try {
-          const { data, error } = await supabase.storage
-            .from(BUCKET)
+          const { data, error } = await supabase.storage.from(BUCKET)
             .createSignedUrl(r.file_path, 60);
-
           if (error) throw error;
           window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
-        } catch (e) {
+        } catch {
           alert('تعذر فتح الملف. تحقق من صلاحيات التخزين.');
-        } finally {
-          open.disabled = false;
         }
       };
 
       const del = document.createElement('button');
       del.textContent = 'حذف';
       del.className = 'danger';
-
       del.onclick = async () => {
         if (busy || !confirm('هل تريد حذف هذا الملف نهائيًا؟')) return;
-
         setBusy(true);
         try {
-          const { error: dbError } = await supabase
-            .from('archive_files')
-            .delete()
-            .eq('id', r.id);
-
-          if (dbError) throw dbError;
-
-          const { error: storageError } = await supabase.storage
-            .from(BUCKET)
+          const { error: storageError } = await supabase.storage.from(BUCKET)
             .remove([r.file_path]);
+          if (storageError) throw storageError;
 
-          if (storageError) {
-            alert('حُذف سجل الملف لكن تعذر حذف الملف المخزن. راجع مسؤول النظام.');
-          }
+          const { error: dbError } = await supabase.from('archive_files')
+            .delete().eq('id', r.id);
+          if (dbError) throw dbError;
 
           await showFiles();
         } catch (e) {
-          alert('تعذر الحذف: ' + (e.message || 'خطأ غير معروف'));
+          alert('تعذر الحذف: ' + (e.message || 'تحقق من الصلاحيات.'));
         } finally {
           setBusy(false);
         }
@@ -311,23 +331,19 @@ async function showFiles() {
       card.append(title, detail, actions);
       container.append(card);
     });
-  } catch (e) {
-    message('listMsg','تعذر تحميل الملفات. تحقق من الجدول وسياسات الصلاحيات.');
+  } catch {
+    $('listMsg').textContent =
+      'تعذر تحميل الملفات. تأكد من إنشاء جدول archive_files وتطبيق سياسات قاعدة البيانات والتخزين.';
   }
 }
 
-$('loginBtn').addEventListener('click', login);
-$('logoutBtn').addEventListener('click', logout);
-$('uploadBtn').addEventListener('click', uploadFile);
 $('searchName').addEventListener('input', showFiles);
 $('filterCategory').addEventListener('change', showFiles);
 
-const { data: authData } = await supabase.auth.getSession();
-if (authData.session) {
+const { data: sessionData } = await supabase.auth.getSession();
+if (sessionData.session) {
   showArchive();
   await showFiles();
-} else {
-  showLogin();
 }
 </script>
 </body>
