@@ -2,175 +2,334 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>أرشيف الاستقطاعات</title>
-  <style>
-    body{font-family:Arial,sans-serif;background:#f4f6f8;margin:0;padding:20px;color:#222}
-    main{max-width:850px;margin:30px auto;background:white;padding:24px;border-radius:12px}
-    h1{color:#176b50;font-size:25px}
-    input,select,button{box-sizing:border-box;width:100%;padding:12px;margin:7px 0;border:1px solid #ccc;border-radius:7px;font-size:16px}
-    button{background:#176b50;color:white;border:0;cursor:pointer}
-    .hidden{display:none}
-    .note{color:#666;font-size:14px}
-    .file{border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0;overflow-wrap:anywhere}
-    .actions{display:flex;gap:8px}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>أرشيف الاستقطاعات</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#f3f6f5;margin:0;padding:16px;color:#222}
+main{max-width:900px;margin:25px auto;background:white;padding:22px;border-radius:14px;box-shadow:0 3px 15px #0001}
+h1{color:#176b50}
+input,select,button{width:100%;padding:12px;margin:7px 0;border:1px solid #ccc;border-radius:7px;font-size:16px}
+button{background:#176b50;color:white;border:0;cursor:pointer}
+button:disabled{opacity:.6}
+.hidden{display:none!important}
+.note{color:#666;font-size:14px}
+.file{border:1px solid #ddd;border-radius:9px;padding:13px;margin:12px 0;overflow-wrap:anywhere}
+.actions{display:flex;gap:8px}
+.actions button{flex:1}
+.danger{background:#a52b2b}
+.status{padding:10px;background:#f4f6f5;border-radius:7px;white-space:pre-wrap}
+</style>
 </head>
 <body>
 <main>
-  <h1>أرشيف الاستقطاعات</h1>
-  <p class="note">نظام حفظ الملفات والبحث عنها حسب اسم الشخص.</p>
+<h1>أرشيف الاستقطاعات</h1>
+<p class="note">حفظ الملفات والبحث عنها حسب اسم الشخص وتصنيف الاستقطاع.</p>
 
-  <section id="login">
-    <h3>تسجيل الدخول</h3>
-    <input id="username" placeholder="اسم المستخدم">
-    <input id="password" type="password" placeholder="كلمة المرور">
-    <button onclick="login()">دخول</button>
-    <p id="loginMsg"></p>
-  </section>
+<section id="login">
+<h3>تسجيل الدخول</h3>
+<input id="username" autocomplete="username" placeholder="اسم المستخدم">
+<input id="password" type="password" autocomplete="current-password" placeholder="كلمة المرور">
+<button id="loginBtn" type="button">دخول</button>
+<p id="loginMsg" class="status" aria-live="polite"></p>
+</section>
 
-  <section id="archive" class="hidden">
-    <button onclick="logout()">تسجيل الخروج</button>
-    <hr>
-    <h3>إضافة ملف</h3>
-    <input id="person" placeholder="اسم الشخص">
-    <select id="category">
-      <option>استقطاع كفالة يتيم / أرملة</option>
-      <option>استقطاع عام</option>
-    </select>
-    <input id="uploadFile" type="file">
-    <button onclick="uploadFile()">حفظ الملف</button>
-    <p id="uploadMsg"></p>
-    <hr>
-    <h3>البحث في الأرشيف</h3>
-    <input id="searchName" placeholder="اكتب اسم الشخص للبحث" oninput="showFiles()">
-    <div id="files"></div>
-  </section>
+<section id="archive" class="hidden">
+<button id="logoutBtn" type="button">تسجيل الخروج</button>
+<hr>
+<h3>إضافة ملف</h3>
+<label for="person">اسم الشخص</label>
+<input id="person" placeholder="اكتب اسم الشخص">
+<label for="category">تصنيف الاستقطاع</label>
+<select id="category">
+<option value="استقطاع كفالة يتيم / أرملة">استقطاع كفالة يتيم / أرملة</option>
+<option value="استقطاع عام">استقطاع عام</option>
+</select>
+<label for="uploadFile">اختر الملف</label>
+<input id="uploadFile" type="file">
+<button id="uploadBtn" type="button">حفظ الملف</button>
+<p id="uploadMsg" class="status" aria-live="polite"></p>
+<hr>
+<h3>البحث في الأرشيف</h3>
+<input id="searchName" placeholder="ابحث باسم الشخص" autocomplete="off">
+<select id="filterCategory">
+<option value="">كل التصنيفات</option>
+<option value="استقطاع كفالة يتيم / أرملة">استقطاع كفالة يتيم / أرملة</option>
+<option value="استقطاع عام">استقطاع عام</option>
+</select>
+<p id="listMsg" class="note"></p>
+<div id="files"></div>
+</section>
 </main>
 
 <script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { createClient } from
+'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-const SUPABASE_URL = 'sb_publishable_v3czIBuYsiubL-A-JQgL6w_KSs6nK9F';
-const SUPABASE_ANON_KEY = 'sb_publishable_v3czIBuYsiubL-A-JQgL6w_KSs6nK9F';
-const supabase = createClient(https://fpqmqpkeakvgddekernj.supabase.co/rest/v1/);
-const bucket = 'archive-documents';
+const SUPABASE_URL = 'https://fpqmqpkeakvgddekernj.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_v3czIBuYsiubL-A-JQgL6w_KSs6nK9F';
+
+const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+);
+
+const BUCKET = 'archive-documents';
+const $ = id => document.getElementById(id);
 let records = [];
+let busy = false;
 
-window.login = async function () {
-  const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value;
-  const msg = document.getElementById('loginMsg');
-  if (!username || !password) { msg.textContent = 'أدخل اسم المستخدم وكلمة المرور.'; return; }
+function message(id, text) {
+  $(id).textContent = text;
+}
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email: username + '@archive.example.com',
-    password
+function setBusy(value) {
+  busy = value;
+  ['loginBtn','uploadBtn','logoutBtn'].forEach(id => {
+    $(id).disabled = value;
   });
+}
 
-  if (error) { msg.textContent = 'تعذر الدخول. تحقق من بيانات الحساب.'; return; }
-  document.getElementById('login').classList.add('hidden');
-  document.getElementById('archive').classList.remove('hidden');
-  await showFiles();
-};
+function showLogin() {
+  $('login').classList.remove('hidden');
+  $('archive').classList.add('hidden');
+}
 
-window.logout = async function () {
-  await supabase.auth.signOut();
-  document.getElementById('archive').classList.add('hidden');
-  document.getElementById('login').classList.remove('hidden');
-};
+function showArchive() {
+  $('login').classList.add('hidden');
+  $('archive').classList.remove('hidden');
+}
 
-window.uploadFile = async function () {
-  const person = document.getElementById('person').value.trim();
-  const category = document.getElementById('category').value;
-  const file = document.getElementById('uploadFile').files[0];
-  const msg = document.getElementById('uploadMsg');
+async function login() {
+  if (busy) return;
+  const username = $('username').value.trim();
+  const password = $('password').value;
 
-  if (!person || !file) { msg.textContent = 'أدخل اسم الشخص واختر الملف.'; return; }
-
-  msg.textContent = 'جارٍ حفظ الملف...';
-  const safeName = file.name.replace(/[^\w.\-\u0600-\u06FF]/g, '_');
-  const path = crypto.randomUUID() + '_' + safeName;
-
-  const { error: storageError } = await supabase.storage.from(bucket).upload(path, file);
-  if (storageError) { msg.textContent = 'تعذر رفع الملف: ' + storageError.message; return; }
-
-  const { error: dbError } = await supabase.from('archive_files').insert({
-    person_name: person,
-    category: category,
-    file_path: path,
-    file_name: file.name
-  });
-
-  if (dbError) {
-    await supabase.storage.from(bucket).remove([path]);
-    msg.textContent = 'تعذر حفظ بيانات الملف: ' + dbError.message;
+  if (!username || !password) {
+    message('loginMsg','أدخل اسم المستخدم وكلمة المرور.');
     return;
   }
 
-  document.getElementById('person').value = '';
-  document.getElementById('uploadFile').value = '';
-  msg.textContent = 'تم حفظ الملف.';
-  await showFiles();
-};
+  setBusy(true);
+  message('loginMsg','جارٍ تسجيل الدخول...');
 
-window.showFiles = async function () {
-  const container = document.getElementById('files');
-  container.textContent = 'جارٍ تحميل الملفات...';
+  try {
+    const email = username.includes('@')
+      ? username
+      : username + '@archive.example.com';
 
-  const { data, error } = await supabase
-    .from('archive_files')
-    .select('*')
-    .order('created_at', { ascending: false });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
 
-  if (error) { container.textContent = 'تعذر تحميل الملفات. تحقق من إعدادات قاعدة البيانات.'; return; }
-  records = data || [];
+    if (error) throw error;
 
-  const term = document.getElementById('searchName').value.trim().toLowerCase();
-  const filtered = records.filter(r => (r.person_name || '').toLowerCase().includes(term));
+    showArchive();
+    await showFiles();
+  } catch (e) {
+    message('loginMsg','تعذر الدخول. تحقق من إنشاء الحساب وصحة البيانات.');
+  } finally {
+    setBusy(false);
+  }
+}
 
+async function logout() {
+  if (busy) return;
+  setBusy(true);
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    records = [];
+    $('files').replaceChildren();
+    showLogin();
+    message('loginMsg','تم تسجيل الخروج.');
+  } catch (e) {
+    alert('تعذر تسجيل الخروج. حاول مرة أخرى.');
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function uploadFile() {
+  if (busy) return;
+
+  const person = $('person').value.trim();
+  const category = $('category').value;
+  const file = $('uploadFile').files[0];
+
+  if (!person || !file) {
+    message('uploadMsg','أدخل اسم الشخص واختر الملف.');
+    return;
+  }
+
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData.user) {
+    showLogin();
+    message('loginMsg','انتهت الجلسة. سجل الدخول مجددًا.');
+    return;
+  }
+
+  setBusy(true);
+  message('uploadMsg','جارٍ رفع الملف...');
+
+  const path = authData.user.id + '/' + crypto.randomUUID();
+
+  try {
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, file, { upsert: false });
+
+    if (uploadError) throw uploadError;
+
+    const { error: dbError } = await supabase
+      .from('archive_files')
+      .insert({
+        person_name: person,
+        category,
+        file_path: path,
+        file_name: file.name
+      });
+
+    if (dbError) {
+      await supabase.storage.from(BUCKET).remove([path]);
+      throw dbError;
+    }
+
+    $('person').value = '';
+    $('uploadFile').value = '';
+    message('uploadMsg','تم حفظ الملف بنجاح.');
+    await showFiles();
+  } catch (e) {
+    message('uploadMsg','تعذر حفظ الملف: ' + (e.message || 'خطأ غير معروف'));
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function showFiles() {
+  const container = $('files');
   container.replaceChildren();
-  if (!filtered.length) { container.textContent = 'لا توجد ملفات مطابقة.'; return; }
+  message('listMsg','جارٍ تحميل الملفات...');
 
-  filtered.forEach(r => {
-    const card = document.createElement('div');
-    card.className = 'file';
-    const title = document.createElement('strong');
-    title.textContent = r.person_name || '';
-    const detail = document.createElement('p');
-    detail.textContent = (r.category || '') + ' — ' + (r.file_name || r.file_path || '');
-    const actions = document.createElement('div');
-    actions.className = 'actions';
-    const open = document.createElement('button');
-    open.textContent = 'فتح / تنزيل';
-    open.onclick = async () => {
-      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(r.file_path, 60);
-      if (error) { alert('تعذر فتح الملف.'); return; }
-      window.open(data.signedUrl, '_blank', 'noopener');
-    };
-    const del = document.createElement('button');
-    del.textContent = 'حذف';
-    del.onclick = async () => {
-      if (!confirm('هل تريد حذف هذا الملف نهائيًا؟')) return;
-      const { error: storageError } = await supabase.storage.from(bucket).remove([r.file_path]);
-      if (storageError) { alert('تعذر حذف الملف من التخزين.'); return; }
-      const { error: dbError } = await supabase.from('archive_files').delete().eq('id', r.id);
-      if (dbError) { alert('حُذف الملف من التخزين لكن تعذر حذف سجله.'); return; }
-      await showFiles();
-    };
-    actions.append(open, del);
-    card.append(title, detail, actions);
-    container.append(card);
-  });
-};
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData.user) {
+    showLogin();
+    message('listMsg','');
+    return;
+  }
 
-const { data: { session } } = await supabase.auth.getSession();
-if (session) {
-  document.getElementById('login').classList.add('hidden');
-  document.getElementById('archive').classList.remove('hidden');
+  try {
+    const { data, error } = await supabase
+      .from('archive_files')
+      .select('id,person_name,category,file_path,file_name,created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    records = data || [];
+
+    const term = $('searchName').value.trim().toLowerCase();
+    const category = $('filterCategory').value;
+
+    const filtered = records.filter(r =>
+      (r.person_name || '').toLowerCase().includes(term) &&
+      (!category || r.category === category)
+    );
+
+    message('listMsg','عدد الملفات: ' + filtered.length);
+
+    if (!filtered.length) {
+      container.textContent = 'لا توجد ملفات مطابقة.';
+      return;
+    }
+
+    filtered.forEach(r => {
+      const card = document.createElement('div');
+      card.className = 'file';
+
+      const title = document.createElement('strong');
+      title.textContent = r.person_name || 'بدون اسم';
+
+      const detail = document.createElement('p');
+      detail.textContent = (r.category || '') + ' — ' + (r.file_name || '');
+
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+
+      const open = document.createElement('button');
+      open.textContent = 'فتح / تنزيل';
+      open.onclick = async () => {
+        open.disabled = true;
+        try {
+          const { data, error } = await supabase.storage
+            .from(BUCKET)
+            .createSignedUrl(r.file_path, 60);
+
+          if (error) throw error;
+          window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+        } catch (e) {
+          alert('تعذر فتح الملف. تحقق من صلاحيات التخزين.');
+        } finally {
+          open.disabled = false;
+        }
+      };
+
+      const del = document.createElement('button');
+      del.textContent = 'حذف';
+      del.className = 'danger';
+
+      del.onclick = async () => {
+        if (busy || !confirm('هل تريد حذف هذا الملف نهائيًا؟')) return;
+
+        setBusy(true);
+        try {
+          const { error: dbError } = await supabase
+            .from('archive_files')
+            .delete()
+            .eq('id', r.id);
+
+          if (dbError) throw dbError;
+
+          const { error: storageError } = await supabase.storage
+            .from(BUCKET)
+            .remove([r.file_path]);
+
+          if (storageError) {
+            alert('حُذف سجل الملف لكن تعذر حذف الملف المخزن. راجع مسؤول النظام.');
+          }
+
+          await showFiles();
+        } catch (e) {
+          alert('تعذر الحذف: ' + (e.message || 'خطأ غير معروف'));
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      actions.append(open, del);
+      card.append(title, detail, actions);
+      container.append(card);
+    });
+  } catch (e) {
+    message('listMsg','تعذر تحميل الملفات. تحقق من الجدول وسياسات الصلاحيات.');
+  }
+}
+
+$('loginBtn').addEventListener('click', login);
+$('logoutBtn').addEventListener('click', logout);
+$('uploadBtn').addEventListener('click', uploadFile);
+$('searchName').addEventListener('input', showFiles);
+$('filterCategory').addEventListener('change', showFiles);
+
+const { data: authData } = await supabase.auth.getSession();
+if (authData.session) {
+  showArchive();
   await showFiles();
+} else {
+  showLogin();
 }
 </script>
 </body>
 </html>
+
